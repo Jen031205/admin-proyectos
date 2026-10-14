@@ -9,7 +9,7 @@ import javax.persistence.Id;
 public class Comentarios {
 	
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id_comentario;
 	private String id_usuario;
 	private Integer id_tarea;

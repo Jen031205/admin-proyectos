@@ -9,7 +9,7 @@ import javax.persistence.Id;
 public class Usuario {
 	
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id_usuario;
 	private String nombre;
 	private String correo_electronico;

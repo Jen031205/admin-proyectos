@@ -9,7 +9,7 @@ import javax.persistence.Id;
 public class Asignaciones {
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Integer id_asignacion;
 	private Integer id_usuario;
 	private Integer id_tarea;
