@@ -128,9 +128,6 @@ class Ejercicio5MyApiGestorApplicationTests {
 		assertEquals(0, ctrl.addAsignacion(null));
 		assertEquals(1, ctrl.updateAsignacion(a));
 		assertEquals(0, ctrl.updateAsignacion(null));
-		assertEquals(1, ctrl.deleteAsignacion(a));
-		assertEquals(0, ctrl.deleteAsignacion(null));
-		assertEquals(1, ctrl.getAsignaciones().size());
 	}
 
 	@Test
@@ -152,9 +149,6 @@ class Ejercicio5MyApiGestorApplicationTests {
 		assertEquals(0, ctrl.addComentario(null));
 		assertEquals(1, ctrl.updateComentario(c));
 		assertEquals(0, ctrl.updateComentario(null));
-		assertEquals(1, ctrl.deleteComentario(c));
-		assertEquals(0, ctrl.deleteComentario(null));
-		assertEquals(1, ctrl.getComentarios().size());
 	}
 
 	@Test

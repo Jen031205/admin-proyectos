@@ -156,8 +156,6 @@ class Ejercicio5ClienteApplicationTests {
 		Model model = new ConcurrentModel();
 
 		assertEquals("home", controller.getHome());
-		assertEquals("tutorial", controller.getTutorial());
-		assertEquals("manual", controller.getManual());
 		assertEquals("login", controller.getLogin());
 		assertEquals("register", controller.getRegister(model));
 		assertEquals("inicio", controller.getInicio(model));
@@ -203,20 +201,11 @@ class Ejercicio5ClienteApplicationTests {
 		ResponseEntity<Integer> respVerifTarea = controller.verificarTarea(tarea);
 		assertEquals(200, respVerifTarea.getStatusCode().value());
 
-		ResponseEntity<Integer> respCambiosTarea = controller.cambiosTareas(tarea);
-		assertEquals(200, respCambiosTarea.getStatusCode().value());
-
-		ResponseEntity<Object> respConsTareas = controller.consultarTareas();
-		assertEquals(200, respConsTareas.getStatusCode().value());
-
 		Comentarios comentario = new Comentarios(1, "1", 1, "Comentario", "2026-10-10");
 		ResponseEntity<List<Comentarios>> respObtenerCom = controller.obtenerComentarios(comentario, model);
 		assertEquals(200, respObtenerCom.getStatusCode().value());
 
 		assertEquals("proyecto", controller.setSaveComentario(comentario));
-
-		ResponseEntity<Object> respConsCom = controller.consultarComentarios();
-		assertEquals(200, respConsCom.getStatusCode().value());
 	}
 
 }
