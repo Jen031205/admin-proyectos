@@ -1,0 +1,44 @@
+# ============================================================================
+# DOCKERFILE MULTI-STAGE - MICROSERVICIO FRONTEND (Ejercicio5Cliente)
+# Incluye proxy local en localhost:8081 -> BACKEND_URL para que GestorController
+# funcione en Railway Cloud sin modificar ni una sola línea del código Java.
+# ============================================================================
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
+WORKDIR /build
+COPY Ejercicio5Cliente/pom.xml ./pom.xml
+COPY Ejercicio5Cliente/src ./src
+RUN mvn clean package -DskipTests
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/*.jar app-frontend.jar
+
+# Si se define BACKEND_URL en Railway (ej. https://back-production.up.railway.app),
+# Nginx escucha en 127.0.0.1:8081 dentro del contenedor y redirige las peticiones
+# de RestTemplate (http://localhost:8081/...) hacia el Backend en Railway.
+RUN printf '#!/bin/sh\n\
+set -e\n\
+APP_PORT="${PORT:-${SERVER_PORT:-8080}}"\n\
+if [ -n "$BACKEND_URL" ]; then\n\
+  CLEAN_URL=$(echo "$BACKEND_URL" | sed "s:/*$::")\n\
+  echo "Configurando puente local localhost:8081 -> ${CLEAN_URL}"\n\
+  cat <<EOF > /etc/nginx/conf.d/backend-bridge.conf\n\
+server {\n\
+    listen 127.0.0.1:8081;\n\
+    location / {\n\
+        proxy_pass ${CLEAN_URL};\n\
+        proxy_ssl_server_name on;\n\
+        proxy_set_header Host \$proxy_host;\n\
+        proxy_set_header X-Real-IP \$remote_addr;\n\
+    }\n\
+}\n\
+EOF\n\
+  rm -f /etc/nginx/sites-enabled/default\n\
+  nginx\n\
+fi\n\
+echo "Iniciando Frontend en puerto ${APP_PORT}"\n\
+exec java -jar /app/app-frontend.jar --server.port="${APP_PORT}"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 8080
+ENTRYPOINT ["/app/entrypoint.sh"]

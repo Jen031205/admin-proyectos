@@ -1,0 +1,135 @@
+# ============================================================================
+# ORQUESTACIÓN INTEGRADA EN LA NUBE (Docker Compose)
+# Levanta simultáneamente sin conflicto de puertos:
+#   1. Base de Datos MariaDB (dbgestor) -> Puerto 3307
+#   2. Microservicio Backend (API REST) -> Puerto 8081
+#   3. Microservicio Frontend (Web)     -> Puerto 8080
+#   4. Jenkins CI/CD (JDK 21 + Semgrep) -> Puerto 8082
+#   5. Prometheus (Métricas y Alertas)  -> Puerto 9090
+#   6. Grafana (Dashboard Observabilidad)-> Puerto 3000
+# ============================================================================
+services:
+  mariadb-dbgestor:
+    image: mariadb:11.2
+    container_name: mariadb-dbgestor
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-cloe_123}
+      MARIADB_DATABASE: dbgestor
+    ports:
+      - "3307:3306"
+    volumes:
+      - ../dump-dbgestor-202406261453.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - circuito-net
+
+  microservicio-back:
+    build:
+      context: ..
+      dockerfile: despliegue/Dockerfile.backend
+    container_name: microservicio-back
+    restart: unless-stopped
+    depends_on:
+      mariadb-dbgestor:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb-dbgestor:3306/dbgestor
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MARIADB_ROOT_PASSWORD:-cloe_123}
+    ports:
+      - "8081:8081"
+      - "8080:8080"
+    networks:
+      - circuito-net
+
+  microservicio-front:
+    build:
+      context: ..
+      dockerfile: despliegue/Dockerfile.frontend
+    container_name: microservicio-front
+    restart: unless-stopped
+    depends_on:
+      - microservicio-back
+    environment:
+      SERVER_PORT: 8080
+    network_mode: "service:microservicio-back"
+
+  jenkins-cloud:
+    build:
+      context: ..
+      dockerfile: despliegue/Dockerfile.jenkins
+    container_name: jenkins-cloud
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_cloud_data:/var/jenkins_home
+    networks:
+      - circuito-net
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "9115:9115"
+    volumes:
+      - ../monitoreo/prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    networks:
+      - circuito-net
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus-devops
+    restart: unless-stopped
+    depends_on:
+      - blackbox-exporter
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../monitoreo/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoreo/prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    networks:
+      - circuito-net
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: grafana-devops
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ../monitoreo/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoreo/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - circuito-net
+
+networks:
+  circuito-net:
+    driver: bridge
+
+volumes:
+  mariadb_data:
+  jenkins_cloud_data:
+  prometheus_data:
+  grafana_data:

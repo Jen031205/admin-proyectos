@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "Circuito DevOps Dashboards"
+    orgId: 1
+    folder: "Admin-Proyectos DevOps"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

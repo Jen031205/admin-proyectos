@@ -1,0 +1,102 @@
+name: Circuito CI/CD Cloud - admin-proyectos (Java 21 + JaCoCo + Semgrep SAST)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  microservicio-front:
+    name: "Pipeline 1: MicroservicioFront (Ejercicio5Cliente)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar Java 21 LTS y Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 3. Build, Unit Tests (Surefire) & Cobertura JaCoCo (>80%)
+        working-directory: Ejercicio5Cliente
+        run: mvn clean test jacoco:report
+
+      - name: 4. Security Scan (SAST) - Semgrep (Excluyendo target)
+        run: |
+          mkdir -p reportes
+          pip install semgrep
+          semgrep scan --config=p/default Ejercicio5Cliente --exclude="target" --json --output=reportes/semgrep-front.json || true
+          md5sum reportes/semgrep-front.json > reportes/semgrep-front.json.md5
+
+      - name: 5. Archivar Reportes JaCoCo y Semgrep Firmado
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-microservicio-front
+          path: |
+            Ejercicio5Cliente/target/site/jacoco/
+            reportes/semgrep-front.json
+            reportes/semgrep-front.json.md5
+
+  microservicio-back:
+    name: "Pipeline 2: MicroservicioBack (Ejercicio5MyAPIGestor)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar Java 21 LTS y Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 3. Build, Unit Tests (Surefire) & Cobertura JaCoCo (>80%)
+        working-directory: Ejercicio5MyAPIGestor
+        run: mvn clean test jacoco:report
+
+      - name: 4. Security Scan (SAST) - Semgrep (Excluyendo target)
+        run: |
+          mkdir -p reportes
+          pip install semgrep
+          semgrep scan --config=p/default Ejercicio5MyAPIGestor --exclude="target" --json --output=reportes/semgrep-back.json || true
+          md5sum reportes/semgrep-back.json > reportes/semgrep-back.json.md5
+
+      - name: 5. Archivar Reportes JaCoCo y Semgrep Firmado
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-microservicio-back
+          path: |
+            Ejercicio5MyAPIGestor/target/site/jacoco/
+            reportes/semgrep-back.json
+            reportes/semgrep-back.json.md5
+
+  base-de-datos:
+    name: "Pipeline 3: BaseDeDatos (Validación SQL + Semgrep SAST)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Validar Integridad de Script SQL (dbgestor)
+        run: |
+          test -f dump-dbgestor-202406261453.sql
+          grep -E "CREATE TABLE|INSERT INTO" dump-dbgestor-202406261453.sql
+
+      - name: 3. Security Scan (SAST) - Semgrep sobre SQL
+        run: |
+          mkdir -p reportes
+          pip install semgrep
+          semgrep scan --config=p/default dump-dbgestor-202406261453.sql --exclude="target" --json --output=reportes/semgrep-db.json || true
+          md5sum reportes/semgrep-db.json > reportes/semgrep-db.json.md5
+
+      - name: 4. Archivar Reporte Semgrep Base de Datos Firmado
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencias-base-de-datos
+          path: |
+            reportes/semgrep-db.json
+            reportes/semgrep-db.json.md5

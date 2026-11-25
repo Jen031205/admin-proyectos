@@ -1,0 +1,51 @@
+# ============================================================================
+# DOCKERFILE MULTI-STAGE - MICROSERVICIO BACKEND (Ejercicio5MyAPIGestor)
+# Compatible con Railway Cloud y Docker Compose local sin modificar código Java.
+# Incluye auto-inicialización de dump-dbgestor-202406261453.sql en Railway MySQL.
+# ============================================================================
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
+WORKDIR /build
+COPY Ejercicio5MyAPIGestor/pom.xml ./pom.xml
+COPY Ejercicio5MyAPIGestor/src ./src
+RUN mvn clean package -DskipTests
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /build/target/*.jar app-backend.jar
+COPY dump-dbgestor-202406261453.sql /app/dump-dbgestor-202406261453.sql
+
+# Script de arranque que detecta automáticamente las variables MySQL de Railway
+# (MYSQLHOST, MYSQLPORT, MYSQLDATABASE, MYSQLUSER, MYSQLPASSWORD y PORT)
+# e importa dump-dbgestor-202406261453.sql automáticamente si la BD está vacía.
+RUN printf '#!/bin/sh\n\
+set -e\n\
+APP_PORT="${PORT:-${SERVER_PORT:-8081}}"\n\
+if [ -n "$MYSQLHOST" ]; then\n\
+  DB_HOST="${MYSQLHOST}"\n\
+  DB_PORT="${MYSQLPORT:-3306}"\n\
+  DB_NAME="${MYSQLDATABASE:-railway}"\n\
+  DB_USER="${MYSQLUSER:-root}"\n\
+  DB_PASS="${MYSQLPASSWORD}"\n\
+  DB_URL="jdbc:mariadb://${DB_HOST}:${DB_PORT}/${DB_NAME}"\n\
+  echo "Verificando si la base de datos en Railway ya tiene datos..."\n\
+  COUNT=$(mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" --skip-ssl "$DB_NAME" -sN -e "SELECT COUNT(*) FROM usuario;" 2>/dev/null || echo "0")\n\
+  if [ "$COUNT" = "0" ]; then\n\
+    echo "Importando dump-dbgestor-202406261453.sql en Railway MySQL..."\n\
+    mariadb -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" -p"$DB_PASS" --skip-ssl "$DB_NAME" < /app/dump-dbgestor-202406261453.sql || true\n\
+    echo "Base de datos inicializada correctamente en Railway."\n\
+  fi\n\
+else\n\
+  DB_URL="${SPRING_DATASOURCE_URL:-jdbc:mariadb://localhost:3307/dbgestor}"\n\
+  DB_USER="${SPRING_DATASOURCE_USERNAME:-root}"\n\
+  DB_PASS="${SPRING_DATASOURCE_PASSWORD:-cloe_123}"\n\
+fi\n\
+echo "Iniciando Backend en puerto ${APP_PORT} conectado a ${DB_URL}"\n\
+exec java -jar /app/app-backend.jar \\\n\
+  --server.port="${APP_PORT}" \\\n\
+  --spring.datasource.url="${DB_URL}" \\\n\
+  --spring.datasource.username="${DB_USER}" \\\n\
+  --spring.datasource.password="${DB_PASS}"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+EXPOSE 8081
+ENTRYPOINT ["/app/entrypoint.sh"]

@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+rule_files:
+  - "/etc/prometheus/alert.rules.yml"
+
+scrape_configs:
+  # 1. Métricas internas del servidor Prometheus (CPU, Memoria de proceso, Go runtime)
+  - job_name: "prometheus-core"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 2. Sondas HTTP de disponibilidad, código de estado y latencia para Frontend, Backend REST y Jenkins
+  - job_name: "microservicios-http-probes"
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://microservicio-back:8080/
+          - http://microservicio-back:8081/usuarios
+          - http://microservicio-back:8081/proyectos
+          - http://microservicio-back:8081/tareas
+          - http://microservicio-back:8081/comentarios
+          - http://microservicio-back:8081/asignaciones
+          - http://jenkins-cloud:8080/login
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # 3. Sonda TCP de disponibilidad de la Base de Datos MariaDB (dbgestor)
+  - job_name: "mariadb-tcp-probe"
+    metrics_path: /probe
+    params:
+      module: [tcp_connect]
+    static_configs:
+      - targets:
+          - mariadb-dbgestor:3306
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

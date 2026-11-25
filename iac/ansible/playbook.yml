@@ -1,0 +1,75 @@
+---
+# ============================================================================
+# PLAYBOOK DE ANSIBLE: CONFIGURACIÓN Y DESPLIEGUE AUTOMATIZADO
+# Proyecto: admin-proyectos (Ejercicio5Cliente, Ejercicio5MyAPIGestor, MariaDB)
+# ============================================================================
+- name: Configurar servidor Cloud y desplegar circuito DevOps admin-proyectos
+  hosts: cloud_servers
+  become: true
+  vars:
+    repo_url: "https://github.com/Jen031205/admin-proyectos.git"
+    repo_branch: "main"
+    app_dir: "/opt/admin-proyectos"
+    db_root_password: "{{ lookup('env', 'DB_ROOT_PASSWORD') | default('cloe_123', true) }}"
+
+  tasks:
+    - name: 1. Actualizar caché de paquetes APT e instalar dependencias base
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - git
+          - docker.io
+          - docker-compose-v2
+        state: present
+        update_cache: true
+
+    - name: 2. Asegurar que el servicio Docker esté activo y habilitado al arranque
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: 3. Clonar o actualizar el repositorio admin-proyectos desde GitHub
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: "{{ repo_branch }}"
+        force: true
+
+    - name: 4. Construir y desplegar contenedores (Frontend, Backend, MariaDB, Prometheus y Grafana)
+      command:
+        cmd: docker compose -f docker-compose.cloud.yml up -d --build
+        chdir: "{{ app_dir }}/despliegue"
+      environment:
+        MARIADB_ROOT_PASSWORD: "{{ db_root_password }}"
+
+    - name: 5. Verificar que el Backend API (puerto 8081) esté operativo
+      uri:
+        url: "http://localhost:8081/usuarios"
+        method: GET
+        status_code: 200
+      register: backend_health
+      retries: 15
+      delay: 4
+      until: backend_health.status == 200
+
+    - name: 6. Verificar que el Frontend Web (puerto 8080) esté operativo
+      uri:
+        url: "http://localhost:8080/"
+        method: GET
+        status_code: 200
+      register: frontend_health
+      retries: 10
+      delay: 3
+      until: frontend_health.status == 200
+
+    - name: 7. Verificar disponibilidad de Prometheus (9090) y Grafana (3000)
+      uri:
+        url: "{{ item }}"
+        method: GET
+        status_code: 200
+      loop:
+        - "http://localhost:9090/-/healthy"
+        - "http://localhost:3000/api/health"

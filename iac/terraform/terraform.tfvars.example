@@ -1,0 +1,10 @@
+# Plantilla de variables para Terraform (copiar a terraform.tfvars localmente)
+# IMPORTANTE: Nunca subir contraseñas reales ni llaves privadas al repositorio Git.
+
+aws_region     = "us-east-1"
+project_name   = "admin-proyectos-devops"
+environment    = "prod"
+instance_type  = "t3.small"
+allowed_cidr   = "0.0.0.0/0"
+ssh_public_key = "ssh-ed25519 AAAA...REEMPLAZAR_CON_LLAVE_PUBLICA_LOCAL"
+db_password    = "REEMPLAZAR_EN_ENTORNO_LOCAL"
