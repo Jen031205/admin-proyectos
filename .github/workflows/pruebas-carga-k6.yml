@@ -1,0 +1,37 @@
+name: Evaluación del Rendimiento Cloud (k6 Load Test -> Railway)
+
+on:
+  workflow_dispatch:
+    inputs:
+      frontend_url:
+        description: "URL pública de MicroservicioFront en Railway (ej. https://front.up.railway.app)"
+        required: true
+      backend_url:
+        description: "URL pública de MicroservicioBack en Railway (ej. https://back.up.railway.app)"
+        required: true
+
+jobs:
+  k6-load-test:
+    name: "Prueba de Carga Controlada (30 VUs / Latencia p95 / Throughput)"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Instalar y Ejecutar Grafana k6 contra Railway Cloud
+        env:
+          FRONTEND_URL: ${{ inputs.frontend_url }}
+          BACKEND_URL: ${{ inputs.backend_url }}
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install -y k6
+          k6 run --summary-export=reporte-rendimiento-k6.json rendimiento/k6/load-test.js
+
+      - name: 3. Archivar Reporte de Rendimiento k6
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-rendimiento-k6
+          path: reporte-rendimiento-k6.json

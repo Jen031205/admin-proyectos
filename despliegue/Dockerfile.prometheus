@@ -1,0 +1,64 @@
+# ============================================================================
+# DOCKERFILE PROMETHEUS + BLACKBOX EXPORTER EN LA NUBE (RAILWAY CLOUD)
+# Monitorea en tiempo real las URLs de MicroservicioFront y MicroservicioBack
+# desplegadas en Railway Cloud, recolectando CPU, Memoria, Disponibilidad,
+# Códigos HTTP, Latencia y evaluando las 4 Reglas de Alerta.
+# ============================================================================
+FROM prom/blackbox-exporter:v0.25.0 AS blackbox
+
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates curl bash prometheus
+COPY --from=blackbox /bin/blackbox_exporter /usr/local/bin/blackbox_exporter
+COPY monitoreo/prometheus/blackbox.yml /etc/prometheus/blackbox.yml
+COPY monitoreo/prometheus/alert.rules.yml /etc/prometheus/alert.rules.yml
+
+RUN printf '#!/bin/bash\n\
+set -e\n\
+APP_PORT="${PORT:-9090}"\n\
+FRONT_TARGET="${FRONTEND_URL:-http://localhost:8080}"\n\
+BACK_TARGET="${BACKEND_URL:-http://localhost:8081}"\n\
+FRONT_CLEAN=$(echo "$FRONT_TARGET" | sed "s:/*$::")\n\
+BACK_CLEAN=$(echo "$BACK_TARGET" | sed "s:/*$::")\n\
+\n\
+cat <<EOF > /etc/prometheus/prometheus.yml\n\
+global:\n\
+  scrape_interval: 10s\n\
+  evaluation_interval: 10s\n\
+\n\
+rule_files:\n\
+  - "/etc/prometheus/alert.rules.yml"\n\
+\n\
+scrape_configs:\n\
+  - job_name: "prometheus-cloud-node"\n\
+    static_configs:\n\
+      - targets: ["localhost:${APP_PORT}"]\n\
+\n\
+  - job_name: "microservicios-http-probes"\n\
+    metrics_path: /probe\n\
+    params:\n\
+      module: [http_2xx]\n\
+    static_configs:\n\
+      - targets:\n\
+          - ${FRONT_CLEAN}/\n\
+          - ${BACK_CLEAN}/usuarios\n\
+          - ${BACK_CLEAN}/proyectos\n\
+          - ${BACK_CLEAN}/tareas\n\
+          - ${BACK_CLEAN}/comentarios\n\
+          - ${BACK_CLEAN}/asignaciones\n\
+    relabel_configs:\n\
+      - source_labels: [__address__]\n\
+        target_label: __param_target\n\
+      - source_labels: [__param_target]\n\
+        target_label: instance\n\
+      - target_label: __address__\n\
+        replacement: 127.0.0.1:9115\n\
+EOF\n\
+\n\
+/usr/local/bin/blackbox_exporter --config.file=/etc/prometheus/blackbox.yml --web.listen-address="127.0.0.1:9115" &\n\
+exec prometheus \\\n\
+  --config.file=/etc/prometheus/prometheus.yml \\\n\
+  --storage.tsdb.path=/prometheus \\\n\
+  --web.listen-address="0.0.0.0:${APP_PORT}"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+EXPOSE 9090
+ENTRYPOINT ["/entrypoint.sh"]
