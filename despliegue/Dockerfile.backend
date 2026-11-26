@@ -1,14 +1,19 @@
 # ============================================================================
 # DOCKERFILE MULTI-STAGE - MICROSERVICIO BACKEND (Ejercicio5MyAPIGestor)
 # Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus
-# en el contenedor Cloud (sin modificar el pom.xml local) para exportar
-# TODAS las métricas de CPU, Memoria JVM, Pool MySQL, Logs, Errores y Tráfico.
+# y permite consultar por GET / , /usuarios , /proyectos y /tareas en el
+# navegador sin modificar los archivos Java ni pom.xml locales.
 # ============================================================================
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
 COPY Ejercicio5MyAPIGestor/pom.xml ./pom.xml
 COPY Ejercicio5MyAPIGestor/src ./src
 RUN sed -i 's|</dependencies>|<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency><dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency></dependencies>|' pom.xml && \
+    sed -i 's|@PostMapping("/buscarUsuarios")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/", "/usuarios", "/buscarUsuarios"})|' src/main/java/com/mx/cbtis/gestor/controller/UsuarioController.java && \
+    sed -i 's|@PostMapping("/buscarProyectos")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/proyectos", "/buscarProyectos"})|' src/main/java/com/mx/cbtis/gestor/controller/ProyectosController.java && \
+    sed -i 's|@PostMapping("/buscarTareas")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/tareas", "/buscarTareas"})|' src/main/java/com/mx/cbtis/gestor/controller/TareasController.java && \
+    sed -i 's|@PostMapping("/buscarComentarios")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/comentarios", "/buscarComentarios"})|' src/main/java/com/mx/cbtis/gestor/controller/ComentariosController.java && \
+    sed -i 's|@PostMapping("/buscarAsignaciones")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/asignaciones", "/buscarAsignaciones"})|' src/main/java/com/mx/cbtis/gestor/controller/AsignacionesController.java && \
     mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
