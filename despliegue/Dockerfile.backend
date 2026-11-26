@@ -1,8 +1,9 @@
 # ============================================================================
 # DOCKERFILE MULTI-STAGE - MICROSERVICIO BACKEND (Ejercicio5MyAPIGestor)
-# Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus
-# y permite consultar por GET / , /usuarios , /proyectos y /tareas en el
-# navegador sin modificar los archivos Java ni pom.xml locales.
+# Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus,
+# permite consultar por GET / , /usuarios , /proyectos y /tareas en el
+# navegador, y acepta DELETE/POST en deleteTareas y deleteProyecto para que
+# Cloudflare en Railway no bloquee el cuerpo JSON al eliminar.
 # ============================================================================
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
@@ -14,6 +15,11 @@ RUN sed -i 's|</dependencies>|<dependency><groupId>org.springframework.boot</gro
     sed -i 's|@PostMapping("/buscarTareas")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/tareas", "/buscarTareas"})|' src/main/java/com/mx/cbtis/gestor/controller/TareasController.java && \
     sed -i 's|@PostMapping("/buscarComentarios")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/comentarios", "/buscarComentarios"})|' src/main/java/com/mx/cbtis/gestor/controller/ComentariosController.java && \
     sed -i 's|@PostMapping("/buscarAsignaciones")|@org.springframework.web.bind.annotation.RequestMapping(value = {"/asignaciones", "/buscarAsignaciones"})|' src/main/java/com/mx/cbtis/gestor/controller/AsignacionesController.java && \
+    sed -i 's|@DeleteMapping("/deleteTareas")|@org.springframework.web.bind.annotation.RequestMapping(value = "/deleteTareas")|' src/main/java/com/mx/cbtis/gestor/controller/TareasController.java && \
+    sed -i 's|@DeleteMapping("/deleteProyecto")|@org.springframework.web.bind.annotation.RequestMapping(value = "/deleteProyecto")|' src/main/java/com/mx/cbtis/gestor/controller/ProyectosController.java && \
+    sed -i 's|@DeleteMapping("/deleteComentario")|@org.springframework.web.bind.annotation.RequestMapping(value = "/deleteComentario")|' src/main/java/com/mx/cbtis/gestor/controller/ComentariosController.java && \
+    sed -i 's|@DeleteMapping("/deleteUsuario")|@org.springframework.web.bind.annotation.RequestMapping(value = "/deleteUsuario")|' src/main/java/com/mx/cbtis/gestor/controller/UsuarioController.java && \
+    sed -i 's|@DeleteMapping("/deleteAsignacion")|@org.springframework.web.bind.annotation.RequestMapping(value = "/deleteAsignacion")|' src/main/java/com/mx/cbtis/gestor/controller/AsignacionesController.java && \
     mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre

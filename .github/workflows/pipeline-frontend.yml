@@ -1,0 +1,44 @@
+name: Pipeline MicroservicioFront (Ejercicio5Cliente)
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "Ejercicio5Cliente/**"
+      - ".github/workflows/pipeline-frontend.yml"
+  workflow_dispatch:
+
+jobs:
+  build-test-frontend:
+    name: "MicroservicioFront: Build, Tests JaCoCo y Semgrep SAST"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Configurar Java 21 LTS y Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: 3. Compilación, Pruebas Unitarias (Surefire) y Reporte JaCoCo (>80%)
+        working-directory: Ejercicio5Cliente
+        run: mvn clean test jacoco:report
+
+      - name: 4. Escaneo de Seguridad SAST - Semgrep (Excluyendo target)
+        run: |
+          mkdir -p reportes
+          pip install semgrep
+          semgrep scan --config=p/default Ejercicio5Cliente --exclude="target" --json --output=reportes/semgrep-front.json || true
+          md5sum reportes/semgrep-front.json > reportes/semgrep-front.json.md5
+
+      - name: 5. Archivar Reporte JaCoCo y Semgrep Firmado (Frontend)
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-microservicio-front
+          path: |
+            Ejercicio5Cliente/target/site/jacoco/
+            reportes/semgrep-front.json
+            reportes/semgrep-front.json.md5

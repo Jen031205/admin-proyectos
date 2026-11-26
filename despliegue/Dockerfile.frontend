@@ -1,8 +1,8 @@
 # ============================================================================
 # DOCKERFILE MULTI-STAGE - MICROSERVICIO FRONTEND (Ejercicio5Cliente)
-# Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus
-# en el contenedor Cloud (sin modificar el pom.xml local) e incluye el puente
-# local localhost:8081 -> BACKEND_URL para no modificar GestorController.java.
+# Conecta directamente RestTemplate con https://microservicioback-production.up.railway.app
+# y habilita server.forward-headers-strategy=framework para que los redirects
+# de Spring Boot (redirect:/proyecto, redirect:/inicio) usen HTTPS en Railway.
 # ============================================================================
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
@@ -10,36 +10,22 @@ RUN git clone --depth 1 https://github.com/Jen031205/admin-proyectos.git /repo &
     cp -r /repo/Ejercicio5Cliente/pom.xml /build/pom.xml && \
     cp -r /repo/Ejercicio5Cliente/src /build/src && \
     sed -i 's|</dependencies>|<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency><dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency></dependencies>|' /build/pom.xml && \
+    sed -i 's|http://localhost:8081|https://microservicioback-production.up.railway.app|g' /build/src/main/java/com/mx/cbtis/controller/GestorController.java && \
+    sed -i 's|return response;|return ResponseEntity.ok(response.getBody());|g' /build/src/main/java/com/mx/cbtis/controller/GestorController.java && \
+    sed -i 's|HttpMethod.DELETE|HttpMethod.POST|g' /build/src/main/java/com/mx/cbtis/controller/GestorController.java && \
     mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
-RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/*.jar app-frontend.jar
 
 RUN printf '#!/bin/sh\n\
 set -e\n\
 APP_PORT="${PORT:-${SERVER_PORT:-8080}}"\n\
-if [ -n "$BACKEND_URL" ]; then\n\
-  CLEAN_URL=$(echo "$BACKEND_URL" | sed "s:/*$::")\n\
-  echo "Configurando puente local localhost:8081 -> ${CLEAN_URL}"\n\
-  cat <<EOF > /etc/nginx/conf.d/backend-bridge.conf\n\
-server {\n\
-    listen 127.0.0.1:8081;\n\
-    location / {\n\
-        proxy_pass ${CLEAN_URL};\n\
-        proxy_ssl_server_name on;\n\
-        proxy_set_header Host \$proxy_host;\n\
-        proxy_set_header X-Real-IP \$remote_addr;\n\
-    }\n\
-}\n\
-EOF\n\
-  rm -f /etc/nginx/sites-enabled/default\n\
-  nginx\n\
-fi\n\
-echo "Iniciando Frontend con Actuator Prometheus habilitado en puerto ${APP_PORT}"\n\
+echo "Iniciando Frontend en puerto ${APP_PORT} con soporte HTTPS para Railway"\n\
 exec java -jar /app/app-frontend.jar \\\n\
   --server.port="${APP_PORT}" \\\n\
+  --server.forward-headers-strategy=framework \\\n\
   --management.endpoints.web.exposure.include=health,info,prometheus,metrics\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8080
