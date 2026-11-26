@@ -1,8 +1,8 @@
 # ============================================================================
 # DOCKERFILE PROMETHEUS + BLACKBOX EXPORTER EN LA NUBE (RAILWAY CLOUD)
-# Monitorea en tiempo real las URLs de MicroservicioFront y MicroservicioBack
-# desplegadas en Railway Cloud, recolectando CPU, Memoria, Disponibilidad,
-# Códigos HTTP, Latencia y evaluando las 4 Reglas de Alerta.
+# Recolecta TODAS las métricas internas de Spring Boot (/actuator/prometheus)
+# de MicroservicioFront y MicroservicioBack (CPU, Memoria JVM, Conexiones BD,
+# Todas las rutas HTTP, Latencia, Errores y Logs) + Sondas de Disponibilidad.
 # ============================================================================
 FROM prom/blackbox-exporter:v0.25.0 AS blackbox
 
@@ -16,9 +16,11 @@ RUN printf '#!/bin/bash\n\
 set -e\n\
 APP_PORT="${PORT:-9090}"\n\
 FRONT_TARGET="${FRONTEND_URL:-http://localhost:8080}"\n\
-BACK_TARGET="${BACKEND_URL:-http://localhost:8081}"\n\
+BACK_TARGET="${BACKEND_URL:-https://microservicioback-production.up.railway.app}"\n\
 FRONT_CLEAN=$(echo "$FRONT_TARGET" | sed "s:/*$::")\n\
 BACK_CLEAN=$(echo "$BACK_TARGET" | sed "s:/*$::")\n\
+FRONT_HOST=$(echo "$FRONT_CLEAN" | sed -e "s|^https://||" -e "s|^http://||")\n\
+BACK_HOST=$(echo "$BACK_CLEAN" | sed -e "s|^https://||" -e "s|^http://||")\n\
 \n\
 cat <<EOF > /etc/prometheus/prometheus.yml\n\
 global:\n\
@@ -29,10 +31,25 @@ rule_files:\n\
   - "/etc/prometheus/alert.rules.yml"\n\
 \n\
 scrape_configs:\n\
-  - job_name: "prometheus-cloud-node"\n\
+  - job_name: "prometheus-server"\n\
     static_configs:\n\
       - targets: ["localhost:${APP_PORT}"]\n\
 \n\
+  # Recolecta TODAS las métricas internas JVM, CPU, RAM, Tráfico HTTP, Logs y Errores del Backend\n\
+  - job_name: "MicroservicioBack-JVM-Actuator"\n\
+    metrics_path: "/actuator/prometheus"\n\
+    scheme: "https"\n\
+    static_configs:\n\
+      - targets: ["${BACK_HOST}"]\n\
+\n\
+  # Recolecta TODAS las métricas internas JVM, CPU, RAM, Tráfico HTTP, Logs y Errores del Frontend\n\
+  - job_name: "MicroservicioFront-JVM-Actuator"\n\
+    metrics_path: "/actuator/prometheus"\n\
+    scheme: "https"\n\
+    static_configs:\n\
+      - targets: ["${FRONT_HOST}"]\n\
+\n\
+  # Sondas externas de disponibilidad y tiempo de respuesta sobre todos los módulos\n\
   - job_name: "microservicios-http-probes"\n\
     metrics_path: /probe\n\
     params:\n\
@@ -40,11 +57,11 @@ scrape_configs:\n\
     static_configs:\n\
       - targets:\n\
           - ${FRONT_CLEAN}/\n\
-          - ${BACK_CLEAN}/usuarios\n\
-          - ${BACK_CLEAN}/proyectos\n\
-          - ${BACK_CLEAN}/tareas\n\
-          - ${BACK_CLEAN}/comentarios\n\
-          - ${BACK_CLEAN}/asignaciones\n\
+          - ${BACK_CLEAN}/buscarUsuario?id=196\n\
+          - ${BACK_CLEAN}/buscarProyecto?id_proyecto=197\n\
+          - ${BACK_CLEAN}/buscarTarea?id_tarea=199\n\
+          - ${BACK_CLEAN}/buscarComentario?id=201\n\
+          - ${BACK_CLEAN}/buscarAsignacion?id=1\n\
     relabel_configs:\n\
       - source_labels: [__address__]\n\
         target_label: __param_target\n\

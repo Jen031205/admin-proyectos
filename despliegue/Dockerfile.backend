@@ -1,13 +1,15 @@
 # ============================================================================
 # DOCKERFILE MULTI-STAGE - MICROSERVICIO BACKEND (Ejercicio5MyAPIGestor)
-# Compatible con Railway Cloud y Docker Compose local sin modificar código Java.
-# Incluye auto-inicialización de dump-dbgestor-202406261453.sql en Railway MySQL.
+# Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus
+# en el contenedor Cloud (sin modificar el pom.xml local) para exportar
+# TODAS las métricas de CPU, Memoria JVM, Pool MySQL, Logs, Errores y Tráfico.
 # ============================================================================
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
 COPY Ejercicio5MyAPIGestor/pom.xml ./pom.xml
 COPY Ejercicio5MyAPIGestor/src ./src
-RUN mvn clean package -DskipTests
+RUN sed -i 's|</dependencies>|<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency><dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency></dependencies>|' pom.xml && \
+    mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
@@ -15,9 +17,6 @@ RUN apt-get update && apt-get install -y mariadb-client && rm -rf /var/lib/apt/l
 COPY --from=builder /build/target/*.jar app-backend.jar
 COPY dump-dbgestor-202406261453.sql /app/dump-dbgestor-202406261453.sql
 
-# Script de arranque que detecta automáticamente las variables MySQL de Railway
-# (MYSQLHOST, MYSQLPORT, MYSQLDATABASE, MYSQLUSER, MYSQLPASSWORD y PORT)
-# e importa dump-dbgestor-202406261453.sql automáticamente si la BD está vacía.
 RUN printf '#!/bin/sh\n\
 set -e\n\
 APP_PORT="${PORT:-${SERVER_PORT:-8081}}"\n\
@@ -40,12 +39,13 @@ else\n\
   DB_USER="${SPRING_DATASOURCE_USERNAME:-root}"\n\
   DB_PASS="${SPRING_DATASOURCE_PASSWORD:-cloe_123}"\n\
 fi\n\
-echo "Iniciando Backend en puerto ${APP_PORT} conectado a ${DB_URL}"\n\
+echo "Iniciando Backend con Actuator Prometheus habilitado en puerto ${APP_PORT}"\n\
 exec java -jar /app/app-backend.jar \\\n\
   --server.port="${APP_PORT}" \\\n\
   --spring.datasource.url="${DB_URL}" \\\n\
   --spring.datasource.username="${DB_USER}" \\\n\
-  --spring.datasource.password="${DB_PASS}"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+  --spring.datasource.password="${DB_PASS}" \\\n\
+  --management.endpoints.web.exposure.include=health,info,prometheus,metrics\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8081
 ENTRYPOINT ["/app/entrypoint.sh"]

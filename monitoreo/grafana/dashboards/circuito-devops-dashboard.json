@@ -8,16 +8,13 @@
   "panels": [
     {
       "id": 1,
-      "title": "Disponibilidad de Endpoints (Frontend, Backend REST y MariaDB)",
+      "title": "1. Disponibilidad en Tiempo Real (Frontend, Backend, Actuator y Endpoints)",
       "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
       "targets": [
-        {
-          "expr": "probe_success",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        }
+        { "expr": "up", "legendFormat": "{{job}}", "refId": "A" },
+        { "expr": "probe_success", "legendFormat": "{{instance}}", "refId": "B" }
       ],
       "fieldConfig": {
         "defaults": {
@@ -42,54 +39,62 @@
     },
     {
       "id": 2,
-      "title": "Códigos de Respuesta HTTP por Endpoint",
-      "type": "stat",
-      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+      "title": "2. Uso de CPU (%) - MicroservicioFront, MicroservicioBack y Monitoreo",
+      "type": "timeseries",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
       "targets": [
-        {
-          "expr": "probe_http_status_code",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        }
-      ]
+        { "expr": "process_cpu_usage * 100", "legendFormat": "CPU JVM (%) - {{job}}", "refId": "A" },
+        { "expr": "system_cpu_usage * 100", "legendFormat": "CPU Sistema (%) - {{job}}", "refId": "B" },
+        { "expr": "rate(process_cpu_seconds_total[1m]) * 100", "legendFormat": "CPU Proceso (%) - {{job}}", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
     },
     {
       "id": 3,
-      "title": "Latencia de Respuesta HTTP (Segundos) - Frontend y Backend",
+      "title": "3. Memoria RAM Utilizada (MB) - JVM Heap y Memoria Residente",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
       "targets": [
-        {
-          "expr": "probe_duration_seconds{job=\"microservicios-http-probes\"}",
-          "legendFormat": "{{instance}}",
-          "refId": "A"
-        }
+        { "expr": "sum by (job) (jvm_memory_used_bytes) / (1024 * 1024)", "legendFormat": "JVM Memoria Usada (MB) - {{job}}", "refId": "A" },
+        { "expr": "process_resident_memory_bytes / (1024 * 1024)", "legendFormat": "RAM Residente (MB) - {{job}}", "refId": "B" }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        }
-      }
+      "fieldConfig": { "defaults": { "unit": "decmbytes" } }
     },
     {
       "id": 4,
-      "title": "Consumo de Memoria RAM y CPU del Nodo de Monitoreo",
+      "title": "4. Latencia y Tiempo de Respuesta HTTP (Segundos) en Todas las Rutas",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 5 },
       "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
       "targets": [
-        {
-          "expr": "process_resident_memory_bytes / (1024 * 1024)",
-          "legendFormat": "Memoria Residente (MB) - {{job}}",
-          "refId": "A"
-        },
-        {
-          "expr": "rate(process_cpu_seconds_total[1m]) * 100",
-          "legendFormat": "Uso CPU (%) - {{job}}",
-          "refId": "B"
-        }
+        { "expr": "probe_duration_seconds", "legendFormat": "Sonda: {{instance}}", "refId": "A" },
+        { "expr": "http_server_requests_seconds_max", "legendFormat": "{{job}} [{{method}} {{uri}} status={{status}}]", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 5,
+      "title": "5. Tráfico Total de Peticiones HTTP y Errores por Ruta y Código de Estado",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
+      "targets": [
+        { "expr": "http_server_requests_seconds_count", "legendFormat": "{{job}}: {{method}} {{uri}} (HTTP {{status}})", "refId": "A" },
+        { "expr": "probe_http_status_code", "legendFormat": "Código HTTP Sonda: {{instance}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "6. Registros (Logs INFO / WARN / ERROR) y Conexiones Activas a Base de Datos MySQL",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus_devops" },
+      "targets": [
+        { "expr": "logback_events_total", "legendFormat": "Logs [{{level}}] - {{job}}", "refId": "A" },
+        { "expr": "hikaricp_connections_active", "legendFormat": "Conexiones Activas MySQL - {{job}}", "refId": "B" },
+        { "expr": "hikaricp_connections", "legendFormat": "Pool Total Conexiones MySQL - {{job}}", "refId": "C" }
       ]
     }
   ],
@@ -100,5 +105,5 @@
   "time": { "from": "now-15m", "to": "now" },
   "title": "Circuito DevOps - Monitoreo y Observabilidad (admin-proyectos)",
   "uid": "circuito-devops-admin-proyectos",
-  "version": 1
+  "version": 2
 }

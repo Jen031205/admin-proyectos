@@ -1,22 +1,22 @@
 # ============================================================================
 # DOCKERFILE MULTI-STAGE - MICROSERVICIO FRONTEND (Ejercicio5Cliente)
-# Incluye proxy local en localhost:8081 -> BACKEND_URL para que GestorController
-# funcione en Railway Cloud sin modificar ni una sola línea del código Java.
+# Habilita automáticamente Spring Boot Actuator + Micrometer Prometheus
+# en el contenedor Cloud (sin modificar el pom.xml local) e incluye el puente
+# local localhost:8081 -> BACKEND_URL para no modificar GestorController.java.
 # ============================================================================
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
-COPY Ejercicio5Cliente/pom.xml ./pom.xml
-COPY Ejercicio5Cliente/src ./src
-RUN mvn clean package -DskipTests
+RUN git clone --depth 1 https://github.com/Jen031205/admin-proyectos.git /repo && \
+    cp -r /repo/Ejercicio5Cliente/pom.xml /build/pom.xml && \
+    cp -r /repo/Ejercicio5Cliente/src /build/src && \
+    sed -i 's|</dependencies>|<dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency><dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency></dependencies>|' /build/pom.xml && \
+    mvn clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 RUN apt-get update && apt-get install -y nginx && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/target/*.jar app-frontend.jar
 
-# Si se define BACKEND_URL en Railway (ej. https://back-production.up.railway.app),
-# Nginx escucha en 127.0.0.1:8081 dentro del contenedor y redirige las peticiones
-# de RestTemplate (http://localhost:8081/...) hacia el Backend en Railway.
 RUN printf '#!/bin/sh\n\
 set -e\n\
 APP_PORT="${PORT:-${SERVER_PORT:-8080}}"\n\
@@ -37,8 +37,10 @@ EOF\n\
   rm -f /etc/nginx/sites-enabled/default\n\
   nginx\n\
 fi\n\
-echo "Iniciando Frontend en puerto ${APP_PORT}"\n\
-exec java -jar /app/app-frontend.jar --server.port="${APP_PORT}"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+echo "Iniciando Frontend con Actuator Prometheus habilitado en puerto ${APP_PORT}"\n\
+exec java -jar /app/app-frontend.jar \\\n\
+  --server.port="${APP_PORT}" \\\n\
+  --management.endpoints.web.exposure.include=health,info,prometheus,metrics\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 EXPOSE 8080
 ENTRYPOINT ["/app/entrypoint.sh"]

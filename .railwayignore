@@ -1,0 +1,10 @@
+.git
+.github
+**/target
+**/target/**
+evidencias_pom
+iac
+rendimiento
+Ejercicio5Cliente/src/main/resources/static
+*.docx
+*.drawio
