@@ -13,11 +13,6 @@ output "backend_api_url" {
   value       = "http://${aws_instance.app_server.public_ip}:8081/usuarios"
 }
 
-output "jenkins_cloud_url" {
-  description = "URL del servidor Jenkins CI/CD desplegado en la nube"
-  value       = "http://${aws_instance.app_server.public_ip}:8082"
-}
-
 output "mariadb_connection" {
   description = "Host y puerto de la Base de Datos MariaDB (dbgestor) en la nube"
   value       = "${aws_instance.app_server.public_ip}:3307 (Esquema: dbgestor)"
@@ -26,9 +21,4 @@ output "mariadb_connection" {
 output "grafana_dashboard_url" {
   description = "URL del tablero de monitoreo y observabilidad en Grafana"
   value       = "http://${aws_instance.app_server.public_ip}:3000"
-}
-
-output "prometheus_metrics_url" {
-  description = "URL del servidor de métricas y alertas en Prometheus"
-  value       = "http://${aws_instance.app_server.public_ip}:9090"
 }

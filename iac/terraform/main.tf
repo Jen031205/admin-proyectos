@@ -1,6 +1,6 @@
 # ============================================================================
 # INFRAESTRUCTURA COMO CÓDIGO (IaC) - APROVISIONAMIENTO CLOUD (TERRAFORM)
-# Proyecto: admin-proyectos (Frontend, Backend, MariaDB, Jenkins y Monitoreo)
+# Proyecto: admin-proyectos (Frontend, Backend, MariaDB y Monitoreo)
 # ============================================================================
 
 data "aws_ami" "ubuntu_2204" {
@@ -25,7 +25,7 @@ resource "aws_key_pair" "deployer_key" {
 
 resource "aws_security_group" "devops_sg" {
   name        = "${var.project_name}-sg"
-  description = "Reglas de red para Frontend (8080), Backend (8081), Jenkins (8082), MariaDB (3307), Prometheus (9090) y Grafana (3000)"
+  description = "Reglas de red para Frontend (8080), Backend (8081), MariaDB (3307) y Grafana (3000)"
 
   # Acceso SSH para aprovisionamiento con Ansible
   ingress {
@@ -54,15 +54,6 @@ resource "aws_security_group" "devops_sg" {
     cidr_blocks = [var.allowed_cidr]
   }
 
-  # Servidor CI/CD Jenkins en la Nube
-  ingress {
-    description = "HTTP Servidor Jenkins CI/CD"
-    from_port   = 8082
-    to_port     = 8082
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_cidr]
-  }
-
   # Base de Datos MariaDB (dbgestor)
   ingress {
     description = "TCP Base de Datos MariaDB dbgestor"
@@ -77,15 +68,6 @@ resource "aws_security_group" "devops_sg" {
     description = "HTTP Tablero Grafana"
     from_port   = 3000
     to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_cidr]
-  }
-
-  # Servidor de Métricas Prometheus
-  ingress {
-    description = "HTTP Metricas Prometheus"
-    from_port   = 9090
-    to_port     = 9090
     protocol    = "tcp"
     cidr_blocks = [var.allowed_cidr]
   }
@@ -124,6 +106,6 @@ resource "aws_instance" "app_server" {
 
   tags = {
     Name = "${var.project_name}-server"
-    Role = "FullStack-Jenkins-DB-Microservices-Monitoring"
+    Role = "FullStack-DB-Microservices-Monitoring"
   }
 }
